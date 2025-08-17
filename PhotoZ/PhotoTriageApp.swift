@@ -1,17 +1,16 @@
 //
-//  PhotoZApp.swift
+//  PhotoTriageApp.swift
 //  PhotoZ
 //
 //  Created by Swati Pareek on 13/08/25.
 //
 
+
 import SwiftUI
 
 @main
-struct PhotoZApp: App {
+struct PhotoTriageApp: App {
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
+        WindowGroup { RootView() }
     }
 }
