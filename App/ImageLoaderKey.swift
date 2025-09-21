@@ -1,3 +1,11 @@
+//
+//  ImageLoaderKey.swift
+//  PhotoZ
+//
+//  Created by Swati Pareek on 01/09/25.
+//
+
+
 import SwiftUI
 
 private struct ImageLoaderKey: EnvironmentKey {

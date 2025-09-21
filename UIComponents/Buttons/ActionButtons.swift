@@ -1,46 +1,39 @@
 import SwiftUI
 
-/// Large tap targets for VoiceOver / accessibility users.
-/// Hidden for non-VO users (PhotoCard decides when to show).
 struct ActionButtons: View {
-    let onKeep: () -> Void
     let onDelete: () -> Void
-    let onLater: () -> Void
+    let onLater:  () -> Void
+    let onKeep:   () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                onDelete()
-            } label: {
-                Label("Delete", systemImage: "trash.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+        HStack(spacing: 32) {
+            Button(action: onDelete) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(Circle().fill(Color.red))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
+            .accessibilityLabel("Delete")
 
-            Button {
-                onLater()
-            } label: {
-                Label("Later", systemImage: "clock.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+            Button(action: onLater) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(Circle().fill(Color.yellow))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.yellow)
+            .accessibilityLabel("Decide later")
 
-            Button {
-                onKeep()
-            } label: {
-                Label("Keep", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
+            Button(action: onKeep) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(Circle().fill(Color.green))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
+            .accessibilityLabel("Keep")
         }
-        .padding(.horizontal)
-        .padding(.bottom)
-        .background(.ultraThinMaterial)
+        .padding(.vertical, 8)
     }
 }

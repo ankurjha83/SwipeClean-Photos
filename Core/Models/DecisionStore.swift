@@ -1,72 +1,79 @@
 import Foundation
+import Combine
 
-/// Observable store for swipe decisions (id = PHAsset.localIdentifier).
-/// Persistence: auto-saves to UserDefaults.
-@MainActor
-final class DecisionStore: ObservableObject {
+public final class DecisionStore: ObservableObject {
+    public static let shared = DecisionStore()
 
-    // Singleton (or inject your own instance if preferred)
-    static let shared = DecisionStore()
+    /// assetID → decision
+    @Published public private(set) var decisions: [String: DecisionStatus] = [:]
 
-    // Storage
-    @Published private(set) var decisions: [String: DecisionStatus] = [:] {
-        didSet { save() }
+    private init() {}
+
+    // MARK: - Mutations
+
+    /// Set the decision for a given asset id.
+    public func stage(assetID: String, as status: DecisionStatus) {
+        decisions[assetID] = status
     }
 
-    private let defaultsKey = "decisions_v1"
-
-    // Init / Load
-    init() { load() }
-
-    // MARK: Staging API
-
-    func stageKeep(_ id: String)   { decisions[id] = .keep }
-    func stageDelete(_ id: String) { decisions[id] = .toDelete }
-    func stageLater(_ id: String)  { decisions[id] = .later }
-
-    func unstage(_ id: String) { decisions.removeValue(forKey: id) }
-    func status(for id: String) -> DecisionStatus? { decisions[id] }
-
-    func ids(_ status: DecisionStatus) -> [String] {
-        decisions.compactMap { $0.value == status ? $0.key : nil }
-    }
-
-    var keepIDs: [String]     { ids(.keep) }
-    var toDeleteIDs: [String] { ids(.toDelete) }
-    var laterIDs: [String]    { ids(.later) }
-
-    func clear(_ status: DecisionStatus) {
-        decisions = decisions.filter { $0.value != status }
-    }
-
-    func resetAll() { decisions.removeAll() }
-
-    func merge(ids: [String], as status: DecisionStatus) {
+    /// Remove the "delete" decision for a set of asset ids.
+    public func unstageDelete(_ ids: Set<String>) {
         guard !ids.isEmpty else { return }
-        var next = decisions
-        for id in ids { next[id] = status }
-        decisions = next
-    }
-
-    // MARK: Persistence
-
-    private func save() {
-        let raw: [String: Int] = decisions.mapValues { $0.rawValue }
-        UserDefaults.standard.set(raw, forKey: defaultsKey)
-    }
-
-    private func load() {
-        guard let raw = UserDefaults.standard.dictionary(forKey: defaultsKey) as? [String: Int] else {
-            decisions = [:]
-            return
+        for id in ids where decisions[id] == .delete {
+            decisions[id] = DecisionStatus.none
         }
-        var out: [String: DecisionStatus] = [:]
-        out.reserveCapacity(raw.count)
-        for (k, v) in raw {
-            if let status = DecisionStatus(rawValue: v) {
-                out[k] = status
-            }
-        }
-        decisions = out
     }
+
+    /// Convenience: unstage a single id from delete.
+    public func unstageDelete(_ id: String) {
+        unstageDelete(Set([id]))
+    }
+
+    /// Clear all items currently marked for delete.
+    public func clearDelete() {
+        for (id, status) in decisions where status == .delete {
+            decisions[id] = DecisionStatus.none
+        }
+    }
+
+    /// Remove the "later" decision for a set of asset ids.
+    public func unstageLater(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        for id in ids where decisions[id] == .later {
+            decisions[id] = DecisionStatus.none
+        }
+    }
+
+    /// Clear all items currently marked "later".
+    public func clearAllLater() {
+        for (id, status) in decisions where status == .later {
+            decisions[id] = DecisionStatus.none
+        }
+    }
+
+    // MARK: - Queries
+
+    public var deleteIDs: [String] {
+        decisions.compactMap { $0.value == .delete ? $0.key : nil }
+    }
+
+    public var laterIDs: [String] {
+        decisions.compactMap { $0.value == .later ? $0.key : nil }
+    }
+
+    public var keepIDs: [String] {
+        decisions.compactMap { $0.value == .keep ? $0.key : nil }
+    }
+
+    public func decision(for id: String) -> DecisionStatus {
+        decisions[id] ?? DecisionStatus.none
+    }
+
+    // MARK: - Compatibility aliases (for older view code)
+
+    /// Old name some views used.
+    public var toDeleteIDs: [String] { deleteIDs }
+
+    /// Old name some views used.
+    public func clearAllDeletes() { clearDelete() }
 }

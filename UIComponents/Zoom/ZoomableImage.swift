@@ -2,16 +2,17 @@
 //  ZoomableImage.swift
 //  PhotoZ
 //
-//  Pinch to zoom, double-tap to zoom, and pan within bounds.
+//  Pinch to zoom always; pan is only active when zoomed.
+//  This prevents the pan from stealing the swipe gesture of the card.
 //
 
 import SwiftUI
 
 public struct ZoomableImage: View {
     public let image: UIImage
-    public let containerSize: CGSize             // the card size
+    public let containerSize: CGSize
 
-    @Binding public var scale: CGFloat           // external bindings so parent can gate swipes
+    @Binding public var scale: CGFloat
     @Binding public var offset: CGSize
 
     private let minScale: CGFloat = 1.0
@@ -28,31 +29,40 @@ public struct ZoomableImage: View {
     }
 
     public var body: some View {
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFill()
-            .frame(width: containerSize.width, height: containerSize.height)
-            .clipped()
-            .scaleEffect(scale)
-            .offset(offset)
-            .gesture(zoomAndPanGesture)
-            .onTapGesture(count: 2, perform: toggleZoom)
-            .animation(.spring(response: 0.25, dampingFraction: 0.9), value: scale)
-            .animation(.spring(response: 0.25, dampingFraction: 0.9), value: offset)
-            .accessibilityLabel("Zoomable photo")
+        ZStack {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: containerSize.width, height: containerSize.height)
+                .clipped()
+                .scaleEffect(scale)
+                .offset(offset)
+                // Pinch is always active (does NOT block parent swipe)
+                .gesture(magnificationGesture)
+                .animation(.spring(response: 0.25, dampingFraction: 0.9), value: scale)
+                .animation(.spring(response: 0.25, dampingFraction: 0.9), value: offset)
+
+            // Pan is attached on a transparent overlay, ONLY when zoomed.
+            // At 1x, this overlay doesn’t hit-test, so the parent card receives the drag.
+            Color.clear
+                .contentShape(Rectangle())
+                .frame(width: containerSize.width, height: containerSize.height)
+                .gesture(panGesture)
+                .allowsHitTesting(scale > minScale + 0.01)
+        }
+        .accessibilityLabel("Zoomable photo")
     }
 
     // MARK: - Gestures
 
-    private var zoomAndPanGesture: some Gesture {
-        let mag = MagnificationGesture()
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
             .onChanged { value in
                 let proposed = scale * value
                 scale = clamped(proposed)
-                // when zooming out close to 1, recenter
                 if scale <= minScale + 0.01 { offset = .zero }
             }
-            .onEnded { value in
+            .onEnded { _ in
                 scale = clamped(scale)
                 if scale <= minScale + 0.01 {
                     scale = minScale
@@ -61,32 +71,23 @@ public struct ZoomableImage: View {
                     offset = clampedOffset(offset, for: scale)
                 }
             }
+    }
 
-        let pan = DragGesture(minimumDistance: 0)
+    private var panGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
             .onChanged { v in
-                guard scale > minScale + 0.01 else { offset = .zero; return }
+                guard scale > minScale + 0.01 else { return }
                 let proposed = CGSize(width: offset.width + v.translation.width,
                                       height: offset.height + v.translation.height)
                 offset = clampedOffset(proposed, for: scale)
             }
             .onEnded { _ in
+                guard scale > minScale + 0.01 else { return }
                 offset = clampedOffset(offset, for: scale)
             }
-
-        return mag.simultaneously(with: pan)
     }
 
     // MARK: - Helpers
-
-    private func toggleZoom() {
-        if scale > minScale + 0.01 {
-            scale = minScale
-            offset = .zero
-        } else {
-            scale = 2.0
-            offset = .zero
-        }
-    }
 
     private func clamped(_ s: CGFloat) -> CGFloat {
         min(max(s, minScale), maxScale)
@@ -94,7 +95,6 @@ public struct ZoomableImage: View {
 
     private func clampedOffset(_ proposed: CGSize, for s: CGFloat) -> CGSize {
         guard s > 1 else { return .zero }
-        // Content grows by factor s; extra size is (s - 1) * size
         let maxX = (containerSize.width  * (s - 1)) / 2
         let maxY = (containerSize.height * (s - 1)) / 2
         return CGSize(

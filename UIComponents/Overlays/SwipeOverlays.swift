@@ -1,53 +1,120 @@
 //
-//  SwipeHint.swift
+//  SwipeOverlays.swift
 //  PhotoZ
 //
-//  Created by Swati Pareek on 17/08/25.
+//  Center-weighted swipe badges + soft tint overlay + tiny one-time hints.
 //
-
 
 import SwiftUI
 
-/// Semantic hint for swipe direction.
-enum SwipeHint: Equatable {
-    case keep, delete, later
+/// A large, angled badge (DELETE/KEEP/LATER) that appears near the center.
+/// Pass `progress` from 0…1 (how close the drag is to committing).
+public struct SwipeBadge: View {
+    public enum Kind { case delete, keep, later }
+
+    let kind: Kind
+    let progress: CGFloat   // 0…1
+
+    public init(kind: Kind, progress: CGFloat) {
+        self.kind = kind
+        self.progress = max(0, min(1, progress))
+    }
+
+    public var body: some View {
+        let c = constants(for: kind)
+
+        return Text(c.text)
+            .font(.system(size: 42, weight: .black, design: .rounded))
+            .kerning(1.5)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .foregroundStyle(.white)
+            .background(c.color.opacity(0.92))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .shadow(radius: 8, y: 4)
+            .opacity(Double(progress))
+            .scaleEffect(0.9 + 0.15 * progress)
+            .rotationEffect(.degrees(c.rotation))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .offset(c.offset)                 // ← positions on screen
+            .allowsHitTesting(false)
+    }
+
+    // Swapped positions: KEEP on the LEFT, DELETE on the RIGHT
+    private func constants(for kind: Kind) -> (text: String, color: Color, rotation: Double, offset: CGSize) {
+        switch kind {
+        case .keep:
+            // Left of center, slight tilt left
+            return ("KEEP", .green, -8, .init(width: -90, height: -12))
+        case .delete:
+            // Right of center, slight tilt right
+            return ("DELETE", .red, 8, .init(width: 90, height: -12))
+        case .later:
+            // Centered but nudged upward a bit
+            return ("LATER", .yellow, 0, .init(width: 0, height: -60))
+        }
+    }
 }
 
-/// Corner badge used while dragging to indicate the intended action.
-/// `strength` should be 0...1 and controls opacity/scale.
-struct SwipeBadge: View {
-    let hint: SwipeHint
-    let strength: CGFloat
+/// A soft color wash that tints the image as you drag.
+public struct SwipeBackdropTint: View {
+    public enum Direction { case none, left, right, up }
 
-    private var title: String {
-        switch hint {
-        case .keep:   return "KEEP"
-        case .delete: return "DELETE"
-        case .later:  return "LATER"
+    let direction: Direction
+    let strength: CGFloat // 0…1
+
+    public init(direction: Direction, strength: CGFloat) {
+        self.direction = direction
+        self.strength = max(0, min(1, strength))
+    }
+
+    public var body: some View {
+        let tint: Color = {
+            switch direction {
+            case .left:  return .red
+            case .right: return .green
+            case .up:    return .yellow
+            case .none:  return .clear
+            }
+        }()
+        return tint.opacity(0.18 * strength)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+    }
+}
+
+/// Small, one-time “cheat sheet” HUD shown until the first successful swipe.
+public struct SwipeHintsHUD: View {
+    @AppStorage("hasSeenSwipeHints") private var hasSeen = false
+
+    public init() {}
+
+    public var body: some View {
+        if hasSeen {
+            EmptyView()
+        } else {
+            HStack(spacing: 14) {
+                label("← delete", .red)
+                label("↑ later",  .yellow)
+                label("→ keep",   .green)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.thinMaterial, in: Capsule())
+            .padding(.top, 8)
+            .allowsHitTesting(false)
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { hasSeen = true }
+            }
         }
     }
 
-    private var color: Color {
-        switch hint {
-        case .keep:   return .green
-        case .delete: return .red
-        case .later:  return .yellow
-        }
-    }
-
-    var body: some View {
-        Text(title)
-            .font(.system(size: 16, weight: .heavy, design: .rounded))
-            .kerning(1.2)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(color.opacity(0.15 + 0.65 * strength))
-                    .overlay(Capsule().stroke(color, lineWidth: 2 * strength))
-            )
-            .foregroundStyle(color)
-            .scaleEffect(0.85 + 0.25 * strength)
-            .accessibilityHidden(true)
+    private func label(_ text: String, _ color: Color) -> some View {
+        Text(text)
+            .font(.caption.bold())
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.9), in: Capsule())
     }
 }

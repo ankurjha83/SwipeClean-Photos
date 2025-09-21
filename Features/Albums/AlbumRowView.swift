@@ -10,17 +10,21 @@ struct AlbumRowView: View {
             HStack(spacing: 12) {
                 Image(systemName: "folder")
                     .foregroundStyle(.secondary)
+
                 VStack(alignment: .leading, spacing: 2) {
                     Text(album.title)
                     Text("\(album.count)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
                 Spacer()
+
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(.accent)
+                    .foregroundStyle(.tint)   // <- was .accent
             }
         }
+        .buttonStyle(.plain)
         .contentShape(Rectangle())
     }
 }

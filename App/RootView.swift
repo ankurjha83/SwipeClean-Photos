@@ -1,179 +1,236 @@
+//
+//import SwiftUI
+//
+//private enum ActiveSheet: Identifiable {
+//    case albums
+//    case deleteReview
+//    case laterReview
+//    case donate(URL)
+//
+//    var id: String {
+//        switch self {
+//        case .albums: return "albums"
+//        case .deleteReview: return "deleteReview"
+//        case .laterReview: return "laterReview"
+//        case .donate(let u): return "donate:\(u.absoluteString)"
+//        }
+//    }
+//}
+//
+//struct RootView: View {
+//    @Environment(\.photoLibrary) private var lib
+//    @Environment(\.imageLoader)  private var images
+//    @EnvironmentObject private var store: DecisionStore
+//    @EnvironmentObject private var albumSel: AlbumSelection
+//
+//    @AppStorage("SwipeClean.HasShownHowTo.v1") private var hasShownHowTo = false
+//
+//    @State private var sheet: ActiveSheet?
+//    @State private var showHowTo = false
+//    @State private var didScheduleHowTo = false
+//
+//    private let donateURL = URL(string: "https://www.paypal.com/donate/?hosted_button_id=YourButtonID")!
+//
+//    var body: some View {
+//        NavigationStack {
+//            ZStack(alignment: .top) {
+//
+//                // CONTENT
+//                VStack(spacing: 0) {
+//                    header
+//                        .zIndex(10)
+//                        .background(.ultraThinMaterial)      // <- creates a solid, hit-testable slab
+//                        .contentShape(Rectangle())            // <- ensures taps are captured by header
+//                    Divider().opacity(0.15)
+//
+//                    CardStackView()
+//                        .environment(\.photoLibrary, lib)
+//                        .environment(\.imageLoader, images)
+//                        .environmentObject(store)
+//                        .environmentObject(albumSel)
+//                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+//                        .clipped()                            // <- make sure deck doesn’t spill over header
+//                        .zIndex(0)
+//                }
+//            }
+//            .navigationBarHidden(true)
+//        }
+//        // Unified sheets
+//        .sheet(item: $sheet) { item in
+//            switch item {
+//            case .albums:
+//                AlbumPickerView()
+//                    .environmentObject(albumSel)
+//
+//            case .deleteReview:
+//                DeleteReviewView()
+//                    .environmentObject(store)
+//                    .environment(\.imageLoader, images)
+//
+//            case .laterReview:
+//                LaterReviewView()
+//                    .environmentObject(store)
+//                    .environment(\.imageLoader, images)
+//
+//            case .donate(let url):
+//                SafariView(url: url).ignoresSafeArea()
+//            }
+//        }
+//        // Tutorial (the only presenter)
+//        .fullScreenCover(isPresented: $showHowTo) {
+//            FirstRunOverlay {
+//                hasShownHowTo = true
+//                showHowTo = false
+//            }
+//            .ignoresSafeArea()
+//        }
+//        .task {
+//            guard !didScheduleHowTo else { return }
+//            didScheduleHowTo = true
+//            if !hasShownHowTo {
+//                // small delay avoids presenting while view hierarchy is still mounting
+//                try? await Task.sleep(nanoseconds: 150_000_000)
+//                showHowTo = true
+//            }
+//        }
+//    }
+//
+//    // MARK: Header
+//
+//    private var header: some View {
+//        HStack(spacing: 14) {
+//            Text("SwipeClean")
+//                .font(.system(size: 28, weight: .bold, design: .rounded))
+//                .lineLimit(1)
+//                .minimumScaleFactor(0.75)
+//
+//            Spacer(minLength: 12)
+//
+//            Button { sheet = .albums }        label: { Image(systemName: "folder") }
+//            Button { sheet = .deleteReview }  label: { Image(systemName: "trash") }
+//            Button { sheet = .laterReview }   label: { Image(systemName: "clock") }
+//            Button { showHowTo = true }       label: { Image(systemName: "info.circle") }
+//            Button { sheet = .donate(donateURL) } label: { Image(systemName: "heart") }
+//        }
+//        .font(.title3.weight(.semibold))
+//        .padding(.horizontal, 16)
+//        .padding(.top, 6)
+//        .padding(.bottom, 6)
+//    }
+//}
+
+//
+//  RootView.swift
+//  PhotoZ
+//
+
 import SwiftUI
-import Photos
-import UIKit
+
+private enum ActiveSheet: Identifiable {
+    case albums
+    case deleteReview
+    case laterReview
+
+    var id: String {
+        switch self {
+        case .albums:        return "albums"
+        case .deleteReview:  return "deleteReview"
+        case .laterReview:   return "laterReview"
+        }
+    }
+}
 
 struct RootView: View {
-    @StateObject var lib = PhotoLibrary()
+    @Environment(\.photoLibrary) private var lib
+    @Environment(\.imageLoader)  private var images
+    @EnvironmentObject private var store: DecisionStore
+    @EnvironmentObject private var albumSel: AlbumSelection
 
-    @State private var showAlbumPicker = false
-    @State private var confirmBatchDelete = false
+    @AppStorage("SwipeClean.HasShownHowTo.v1") private var hasShownHowTo = false
+
+    @State private var sheet: ActiveSheet?
+    @State private var showHowTo = false
+    @State private var didScheduleHowTo = false
 
     var body: some View {
         NavigationStack {
-            content
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar(.hidden, for: .navigationBar)
-                .background(Color.black.ignoresSafeArea())
-        }
-        // TOP: header below the status bar (no overlap)
-        .safeAreaInset(edge: .top) {
-            HeaderBar(
-                title: titleForSource(lib.source),
-                laterAction: { toggleLater() },
-                deleteAction: { confirmBatchDelete = true },
-                albumAction: { showAlbumPicker = true },
-                pendingDeleteCount: lib.pendingDeleteIDs.count
-            )
-            .padding(.horizontal, 12)
-            .padding(.top, 4)
-        }
-        // BOTTOM: mini bar above the home indicator
-        .safeAreaInset(edge: .bottom) {
-            BottomMiniBar(
-                laterAction: { toggleLater() },
-                deleteAction: { confirmBatchDelete = true },
-                undoAction: { lib.undoLast() },
-                albumAction: { showAlbumPicker = true },
-                pendingDeleteCount: lib.pendingDeleteIDs.count,
-                isShowingLater: lib.source == .later,
-                canUndo: lib.lastAction != nil
-            )
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
-        }
-        // Alerts & sheets
-        .alert("Delete \(lib.pendingDeleteIDs.count) photo(s)?",
-               isPresented: $confirmBatchDelete) {
-            Button("Delete", role: .destructive) { lib.commitDeletes() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Items move to \"Recently Deleted\" and can be restored for ~30 days.")
-        }
-        .sheet(isPresented: $showAlbumPicker) {
-            AlbumPickerView(lib: lib)
-        }
-    }
+            ZStack(alignment: .top) {
 
-    // MARK: - Screen content
+                VStack(spacing: 0) {
+                    header
+                        .zIndex(10)
+                        .background(.ultraThinMaterial)  // hit-testable slab so taps always work
+                        .contentShape(Rectangle())
+                    Divider().opacity(0.15)
 
-    @ViewBuilder
-    private var content: some View {
-        switch lib.authStatus {
-        case .authorized, .limited:
-            CardStackView(lib: lib) // fills behind the insets
-
-        case .denied:
-            VStack(spacing: 12) {
-                Text("Photo access is required").font(.headline)
-                Text("Enable in Settings → Privacy → Photos.")
-                Button("Request Again") { lib.requestAccessAndLoad() }
-            }
-            .padding()
-
-        default:
-            VStack {
-                ProgressView()
-                Text("Requesting access…")
-            }
-            .task { lib.requestAccessAndLoad() }
-        }
-    }
-
-    // MARK: - Actions
-
-    private func toggleLater() {
-        if lib.source == .later { lib.loadAll() } else { lib.loadLater() }
-    }
-
-    private func titleForSource(_ s: PhotoLibrary.Source) -> String {
-        switch s {
-        case .all:   return "SwipeClean – Photos"
-        case .later: return "SwipeClean — Later"
-        case .album(let c): return c.localizedTitle ?? "Album"
-        }
-    }
-}
-
-// MARK: - Header + Bottom bar (unchanged from before)
-
-private struct HeaderBar: View {
-    let title: String
-    let laterAction: () -> Void
-    let deleteAction: () -> Void
-    let albumAction: () -> Void
-    let pendingDeleteCount: Int
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            Spacer()
-
-            Menu {
-                Button(action: { laterAction() }) {
-                    Label("Later", systemImage: "clock")
-                }
-                Button(role: .destructive, action: { deleteAction() }) {
-                    Label("Delete Pending (\(pendingDeleteCount))", systemImage: "trash")
-                }
-                .disabled(pendingDeleteCount == 0)
-
-                Divider()
-                Button(action: { albumAction() }) {
-                    Label("Albums…", systemImage: "rectangle.stack")
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.title2)
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-    }
-}
-
-private struct BottomMiniBar: View {
-    let laterAction: () -> Void
-    let deleteAction: () -> Void
-    let undoAction: () -> Void
-    let albumAction: () -> Void
-    let pendingDeleteCount: Int
-    let isShowingLater: Bool
-    let canUndo: Bool
-
-    var body: some View {
-        HStack(spacing: 22) {
-            Button(action: { laterAction() }) {
-                VStack(spacing: 2) { Image(systemName: "clock"); Text(isShowingLater ? "All" : "Later") }
-            }
-            Button(action: { deleteAction() }) {
-                VStack(spacing: 2) {
-                    Image(systemName: "trash.fill").symbolRenderingMode(.hierarchical)
-                    Text(pendingDeleteCount > 0 ? "Delete \(pendingDeleteCount)" : "Delete")
+                    CardStackView()
+                        .environment(\.photoLibrary, lib)
+                        .environment(\.imageLoader, images)
+                        .environmentObject(store)
+                        .environmentObject(albumSel)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .zIndex(0)
                 }
             }
-            .tint(.red)
-            .disabled(pendingDeleteCount == 0)
+            .navigationBarHidden(true)
+        }
+        // Unified sheets
+        .sheet(item: $sheet) { item in
+            switch item {
+            case .albums:
+                AlbumPickerView()
+                    .environmentObject(albumSel)
 
-            Button(action: { undoAction() }) {
-                VStack(spacing: 2) { Image(systemName: "arrow.uturn.backward.circle"); Text("Undo") }
-            }
-            .disabled(!canUndo)
-            .opacity(canUndo ? 1 : 0.5)
+            case .deleteReview:
+                DeleteReviewView()
+                    .environmentObject(store)
+                    .environment(\.imageLoader, images)
 
-            Button(action: { albumAction() }) {
-                VStack(spacing: 2) { Image(systemName: "rectangle.stack"); Text("Albums") }
+            case .laterReview:
+                LaterReviewView()
+                    .environmentObject(store)
+                    .environment(\.imageLoader, images)
             }
         }
-        .font(.footnote)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial, in: Capsule())
+        // First-run tutorial (single presenter)
+        .fullScreenCover(isPresented: $showHowTo) {
+            FirstRunOverlay {
+                hasShownHowTo = true
+                showHowTo = false
+            }
+            .ignoresSafeArea()
+        }
+        .task {
+            guard !didScheduleHowTo else { return }
+            didScheduleHowTo = true
+            if !hasShownHowTo {
+                // small delay avoids racing with view mounting
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                showHowTo = true
+            }
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: 14) {
+            Text("SwipeClean")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Spacer(minLength: 12)
+
+            Button { sheet = .albums }        label: { Image(systemName: "folder") }
+            Button { sheet = .deleteReview }  label: { Image(systemName: "trash") }
+            Button { sheet = .laterReview }   label: { Image(systemName: "clock") }
+            Button { showHowTo = true }       label: { Image(systemName: "info.circle") }
+        }
+        .font(.title3.weight(.semibold))
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 6)
     }
 }

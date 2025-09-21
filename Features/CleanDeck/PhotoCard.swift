@@ -1,101 +1,262 @@
+////
+////  PhotoCard.swift
+////  PhotoZ
+////
+//
+//import SwiftUI
+//
+//struct PhotoCard: View {
+//    let asset: PhotoAsset
+//    let size: CGSize
+//
+//    let onDelete: () -> Void
+//    let onLater:  () -> Void
+//    let onKeep:   () -> Void
+//
+//    @Environment(\.imageLoader) private var images
+//
+//    @State private var uiImage: UIImage?
+//    @GestureState private var drag: CGSize = .zero
+//    @State private var showViewer = false
+//
+//    private let commitX: CGFloat = 100
+//    private let commitY: CGFloat = -100
+//
+//    @AppStorage("hasSeenFullSwipeOnboarding") private var hasSeenFullOnboarding = false
+//
+//    var body: some View {
+//        ZStack {
+//            // BACKDROP (soft blur of the photo to avoid hard bars)
+//            if let img = uiImage {
+//                Image(uiImage: img)
+//                    .resizable()
+//                    .scaledToFill()
+//                    .frame(width: size.width, height: size.height)
+//                    .blur(radius: 20)
+//                    .clipped()
+//                    .opacity(0.35)
+//            } else {
+//                Color(UIColor.secondarySystemBackground)
+//            }
+//
+//            // MAIN IMAGE — keep aspect (no cropping)
+//            Group {
+//                if let img = uiImage {
+//                    Image(uiImage: img)
+//                        .resizable()
+//                        .scaledToFit()                          // ← no crop; respects landscape
+//                        .frame(width: size.width, height: size.height)
+//                        .clipped()
+//                } else {
+//                    Rectangle().fill(Color.secondary.opacity(0.15))
+//                        .overlay(ProgressView())
+//                        .frame(width: size.width, height: size.height)
+//                }
+//            }
+//            .contentShape(Rectangle())
+//            .onTapGesture { showViewer = true }
+//
+//            // Backdrop tint + badges
+//            SwipeBackdropTint(direction: directionForDrag(drag),
+//                              strength: progressForDrag(drag))
+//
+//            if drag.width > 0 {
+//                SwipeBadge(kind: .keep,   progress: min(1, abs(drag.width) / commitX))
+//            } else if drag.width < 0 {
+//                SwipeBadge(kind: .delete, progress: min(1, abs(drag.width) / commitX))
+//            }
+//            if drag.height < 0 && abs(drag.width) < commitX * 0.6 {
+//                SwipeBadge(kind: .later,  progress: min(1, abs(drag.height) / abs(commitY)))
+//            }
+//
+//            if hasSeenFullOnboarding {
+//                VStack { SwipeHintsHUD(); Spacer() }
+//            } else {
+//                FirstRunOverlay { hasSeenFullOnboarding = true }
+//                    .transition(.opacity)
+//                    .zIndex(10)
+//                    .allowsHitTesting(true)
+//            }
+//        }
+//        .frame(width: size.width, height: size.height)
+//        .background(
+//            RoundedRectangle(cornerRadius: 18, style: .continuous)
+//                .fill(Color(UIColor.secondarySystemBackground))
+//        )
+//        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+//        .shadow(color: .black.opacity(0.15), radius: 10, y: 8)
+//        .rotationEffect(.degrees(Double(drag.width / 15)))
+//        .offset(x: drag.width, y: drag.height * 0.6)
+//        .gesture(
+//            DragGesture(minimumDistance: 8, coordinateSpace: .local)
+//                .updating($drag) { value, state, _ in
+//                    state = value.translation
+//                }
+//                .onEnded(handleEnd)
+//        )
+//        .task(id: size) { await load() }
+//        .fullScreenCover(isPresented: $showViewer) {
+//            PhotoViewer(asset: asset)
+//        }
+//    }
+//
+//    private func handleEnd(_ value: DragGesture.Value) {
+//        let t = value.translation
+//        let h = UIImpactFeedbackGenerator(style: .medium)
+//        if t.width > commitX { h.impactOccurred(); onKeep() }
+//        else if t.width < -commitX { h.impactOccurred(); onDelete() }
+//        else if t.height < commitY && abs(t.width) < commitX { h.impactOccurred(); onLater() }
+//    }
+//
+//    private func directionForDrag(_ t: CGSize) -> SwipeBackdropTint.Direction {
+//        if t.width > 0, abs(t.width) >= abs(t.height) { return .right }
+//        if t.width < 0, abs(t.width) >= abs(t.height) { return .left  }
+//        if t.height < 0 { return .up }
+//        return .none
+//    }
+//    private func progressForDrag(_ t: CGSize) -> CGFloat {
+//        switch directionForDrag(t) {
+//        case .right, .left: return min(1, abs(t.width) / commitX)
+//        case .up:           return min(1, abs(t.height) / abs(commitY))
+//        case .none:         return 0
+//        }
+//    }
+//
+//    private func load() async {
+//        // Request at pixel size for crispness
+//        let s = UIScreen.main.scale
+//        let target = CGSize(width: size.width * s, height: size.height * s)
+//        if let img = await images.thumbnail(for: asset, targetSize: target) {
+//            uiImage = img
+//        }
+//    }
+//}
+
+
+
+//
+//  PhotoCard.swift
+//  PhotoZ
+//
+
 import SwiftUI
-import Photos
 
 struct PhotoCard: View {
-    let asset: PHAsset
-    @ObservedObject var lib: PhotoLibrary
-    let cardSize: CGSize
-    var onSingleTap: () -> Void
-    var onAction: (TriageToast) -> Void
+    let asset: PhotoAsset
+    let size: CGSize
 
-    @State private var image: UIImage?
-    @State private var offset: CGSize = .zero
-    @State private var isInCloud = false
-    @State private var loadFailed = false
+    let onDelete: () -> Void
+    let onLater:  () -> Void
+    let onKeep:   () -> Void
+
+    @Environment(\.imageLoader) private var images
+
+    @State private var uiImage: UIImage?
+    @GestureState private var drag: CGSize = .zero
+    @State private var showViewer = false
+
+    private let commitX: CGFloat = 100
+    private let commitY: CGFloat = -100
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            ZStack {
-                if let ui = image {
-                    Image(uiImage: ui)
+        ZStack {
+            // BACKDROP (soft blur of the photo to avoid hard bars)
+            if let img = uiImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .blur(radius: 20)
+                    .clipped()
+                    .opacity(0.35)
+            } else {
+                Color(UIColor.secondarySystemBackground)
+            }
+
+            // MAIN IMAGE — keep aspect (no cropping)
+            Group {
+                if let img = uiImage {
+                    Image(uiImage: img)
                         .resizable()
-                        .interpolation(.high)        // <- sharper
-                        .scaledToFill()
-                } else if loadFailed {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 28))
-                        Text("Preview unavailable")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        Text("Tap to open").font(.caption2)
-                    }
-                    .foregroundStyle(.white)
+                        .scaledToFit()                          // respects landscape
+                        .frame(width: size.width, height: size.height)
+                        .clipped()
                 } else {
-                    ProgressView().controlSize(.large)
+                    Rectangle().fill(Color.secondary.opacity(0.15))
+                        .overlay(ProgressView())
+                        .frame(width: size.width, height: size.height)
                 }
-                RoundedRectangle(cornerRadius: 28)
-                    .strokeBorder(.white.opacity(0.25), lineWidth: 1)
             }
-            .contentShape(RoundedRectangle(cornerRadius: 28))
+            .contentShape(Rectangle())
+            .onTapGesture { showViewer = true }
 
-            if isInCloud {
-                Image(systemName: "icloud.and.arrow.down")
-                    .padding(8)
-                    .background(.thinMaterial, in: Circle())
-                    .padding(8)
+            // Backdrop tint + badges
+            SwipeBackdropTint(direction: directionForDrag(drag),
+                              strength: progressForDrag(drag))
+
+            if drag.width > 0 {
+                SwipeBadge(kind: .keep,   progress: min(1, abs(drag.width) / commitX))
+            } else if drag.width < 0 {
+                SwipeBadge(kind: .delete, progress: min(1, abs(drag.width) / commitX))
             }
+            if drag.height < 0 && abs(drag.width) < commitX * 0.6 {
+                SwipeBadge(kind: .later,  progress: min(1, abs(drag.height) / abs(commitY)))
+            }
+
+            // (Optional) small HUD, not a full-screen overlay
+            VStack { SwipeHintsHUD(); Spacer() }
         }
-        .frame(width: cardSize.width, height: cardSize.height)
-        .background(.black.opacity(0.001))
-        .clipShape(RoundedRectangle(cornerRadius: 28))
-        .shadow(radius: 8, y: 6)
-        .offset(offset)
-        .rotationEffect(.degrees(Double(offset.width / 20)))
-
-        // Double-tap = Favorite
-        .highPriorityGesture(
-            TapGesture(count: 2).onEnded {
-                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
-                lib.favoriteTop()
-                onAction(.favorite)
-            }
+        .frame(width: size.width, height: size.height)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
         )
-        // Single-tap = open viewer
-        .onTapGesture { onSingleTap() }
-
-        // Swipes: Right=Keep, Left=Delete, Up=Later
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 8)
+        .rotationEffect(.degrees(Double(drag.width / 15)))
+        .offset(x: drag.width, y: drag.height * 0.6)
         .gesture(
-            DragGesture()
-                .onChanged { value in offset = value.translation }
-                .onEnded { value in
-                    let t = value.translation
-                    if t.width > 100 {                // RIGHT → KEEP
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        lib.keepTop(); onAction(.keep)
-                    } else if t.width < -100 {        // LEFT → DELETE
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        lib.markDeleteTop(); onAction(.delete)
-                    } else if t.height < -100 {       // UP → LATER
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        lib.decideLaterTop(); onAction(.later)
-                    }
-                    withAnimation(.spring()) { offset = .zero }
+            DragGesture(minimumDistance: 8, coordinateSpace: .local)
+                .updating($drag) { value, state, _ in
+                    state = value.translation
                 }
+                .onEnded(handleEnd)
         )
-        .onAppear {
-            // Ask a little bigger than the visible card for crispness.
-            let inflate: CGFloat = 1.1
-            let requestSize = CGSize(width: cardSize.width * inflate,
-                                     height: cardSize.height * inflate)
-            Task {
-                let img = await ImageLoader.shared.thumb(for: asset.localIdentifier, target: requestSize)
-                await MainActor.run { self.image = img; self.loadFailed = (img == nil) }
-            }
-            lib.checkCloudStatus(for: asset) { inCloud in self.isInCloud = inCloud }
+        .task(id: size) { await load() }
+        .fullScreenCover(isPresented: $showViewer) {
+            PhotoViewer(asset: asset)
         }
-        .onDisappear {
-            Task { await ImageLoader.shared.cancel(for: asset.localIdentifier) }
+    }
+
+    private func handleEnd(_ value: DragGesture.Value) {
+        let t = value.translation
+        let h = UIImpactFeedbackGenerator(style: .medium)
+        if t.width > commitX { h.impactOccurred(); onKeep() }
+        else if t.width < -commitX { h.impactOccurred(); onDelete() }
+        else if t.height < commitY && abs(t.width) < commitX { h.impactOccurred(); onLater() }
+    }
+
+    private func directionForDrag(_ t: CGSize) -> SwipeBackdropTint.Direction {
+        if t.width > 0, abs(t.width) >= abs(t.height) { return .right }
+        if t.width < 0, abs(t.width) >= abs(t.height) { return .left  }
+        if t.height < 0 { return .up }
+        return .none
+    }
+
+    private func progressForDrag(_ t: CGSize) -> CGFloat {
+        switch directionForDrag(t) {
+        case .right, .left: return min(1, abs(t.width) / commitX)
+        case .up:           return min(1, abs(t.height) / abs(commitY))
+        case .none:         return 0
+        }
+    }
+
+    private func load() async {
+        // Request at pixel size for crispness
+        let s = UIScreen.main.scale
+        let target = CGSize(width: size.width * s, height: size.height * s)
+        if let img = await images.thumbnail(for: asset, targetSize: target) {
+            uiImage = img
         }
     }
 }

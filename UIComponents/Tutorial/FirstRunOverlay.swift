@@ -1,95 +1,57 @@
-//
-//  FirstRunOverlay.swift
-//  PhotoZ
-//
-//  A one-time, full-screen tutorial explaining swipe actions.
-//
-
 import SwiftUI
 
-public struct FirstRunOverlay: View {
-    /// Call to dismiss the overlay (and persist that it was seen).
-    let dismiss: () -> Void
+struct FirstRunOverlay: View {
+    var onClose: () -> Void
 
-    @State private var show = false
-
-    public init(dismiss: @escaping () -> Void) {
-        self.dismiss = dismiss
-    }
-
-    public var body: some View {
+    var body: some View {
         ZStack {
-            // Dimmed background
-            Color.black.opacity(0.6)
-                .ignoresSafeArea()
-                .transition(.opacity)
+            Color.black.opacity(0.55).ignoresSafeArea()
 
-            // Card-style tutorial content
             VStack(spacing: 20) {
-                Text("How swiping works")
-                    .font(.system(size: 28, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.primary)
+                Text("How SwipeClean works")
+                    .font(.largeTitle).bold()
 
                 VStack(spacing: 14) {
                     row(icon: "trash.fill",
+                        iconColor: .red,
                         title: "Swipe Left",
-                        subtitle: "Mark for delete",
-                        tint: .red)
+                        subtitle: "Mark for delete")
 
                     row(icon: "clock.fill",
+                        iconColor: .yellow,
                         title: "Swipe Up",
-                        subtitle: "Decide later",
-                        tint: .yellow)
+                        subtitle: "Decide later")
 
                     row(icon: "checkmark.circle.fill",
-                        title: "Swipe Right",
-                        subtitle: "Keep photo",
-                        tint: .green)
+                        iconColor: .green,
+                        title: "Swipe Right / Down",
+                        subtitle: "Keep photo")
                 }
-                .padding(.vertical, 6)
 
-                Text("Tip: drag a little to preview the action badge.\nRelease past the threshold to commit.")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
+                Text("Tip: drag a little to preview the action badge. Release past the threshold to commit.")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal)
+                    .multilineTextAlignment(.center)
 
-                Button(action: dismiss) {
-                    Text("Got it, let me try")
-                        .font(.headline)
+                Button(action: onClose) {
+                    Text("Got it, let me try!")
+                        .bold()
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.accentColor)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .padding(.top, 4)
             }
             .padding(22)
-            .frame(maxWidth: 520)
-            .background(
-                .ultraThinMaterial,
-                in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-            )
-            .padding(.horizontal, 24)
-            .shadow(radius: 20)
-            .scaleEffect(show ? 1 : 0.96)
-            .opacity(show ? 1 : 0)
-            .animation(.spring(response: 0.45, dampingFraction: 0.9), value: show)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .padding(24)
         }
-        .onAppear { show = true }
-        .accessibilityAddTraits(.isModal)
     }
 
-    private func row(icon: String, title: String, subtitle: String, tint: Color) -> some View {
-        HStack(spacing: 14) {
+    private func row(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(tint.opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .font(.title2)
+                .foregroundStyle(iconColor)
+                .frame(width: 30)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.headline)
@@ -97,11 +59,16 @@ public struct FirstRunOverlay: View {
             }
             Spacer()
         }
-        .frame(maxWidth: .infinity)
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.thinMaterial)
-        )
+        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: One-time flag
+    static var shouldShow: Bool {
+        !UserDefaults.standard.bool(forKey: "FirstRunOverlayShown")
+    }
+
+    static func markShown() {
+        UserDefaults.standard.set(true, forKey: "FirstRunOverlayShown")
     }
 }

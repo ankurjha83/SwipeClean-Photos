@@ -1,18 +1,18 @@
-//
-//  SafariView.swift
-//  PhotoZ
-//
-
 import SwiftUI
 import SafariServices
 
-struct SafariView: UIViewControllerRepresentable {
-    let url: URL
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let vc = SFSafariViewController(url: url)
+public struct SafariView: UIViewControllerRepresentable {
+    public init(url: URL) { self.url = url }
+    private let url: URL
+
+    public func makeUIViewController(context: Context) -> SFSafariViewController {
+        let cfg = SFSafariViewController.Configuration()
+        cfg.entersReaderIfAvailable = false
+        let vc = SFSafariViewController(url: url, configuration: cfg)
         vc.preferredBarTintColor = nil
         vc.preferredControlTintColor = nil
         return vc
     }
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+
+    public func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
